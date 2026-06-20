@@ -9,7 +9,7 @@ use ratatui::{
 };
 use unicode_width::UnicodeWidthStr;
 
-use crate::display::{process_matches_filter, DisplayBandwidth, UIState};
+use crate::display::{DisplayBandwidth, UIState};
 
 pub fn elapsed_time(last_start_time: Instant, cumulative_time: Duration, paused: bool) -> Duration {
     if paused {
@@ -80,37 +80,16 @@ impl HeaderDetails<'_> {
             "Rate"
         };
         let unit_family = self.state.unit_family;
-        let (total_up, total_down) = self.compute_total_bandwidth();
         let up = DisplayBandwidth {
-            bandwidth: total_up as f64,
+            bandwidth: self.state.filtered_total_bytes_uploaded as f64,
             unit_family,
         };
         let down = DisplayBandwidth {
-            bandwidth: total_down as f64,
+            bandwidth: self.state.filtered_total_bytes_downloaded as f64,
             unit_family,
         };
         let paused = if self.paused { " [PAUSED]" } else { "" };
         format!("IF: {intrf} | Total {t} (Up / Down): {up} / {down}{paused}")
-    }
-
-    fn compute_total_bandwidth(&self) -> (u128, u128) {
-        match self.state.process_filter.as_deref() {
-            Some(filter) => {
-                let mut up = 0u128;
-                let mut down = 0u128;
-                for (proc_info, data) in &self.state.processes {
-                    if process_matches_filter(&proc_info.name, Some(filter)) {
-                        up += data.total_bytes_uploaded;
-                        down += data.total_bytes_downloaded;
-                    }
-                }
-                (up, down)
-            }
-            None => (
-                self.state.total_bytes_uploaded,
-                self.state.total_bytes_downloaded,
-            ),
-        }
     }
 
     fn render_elapsed_time(&self, frame: &mut Frame, rect: Rect, elapsed_time: &str, color: Color) {

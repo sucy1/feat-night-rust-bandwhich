@@ -98,6 +98,9 @@ pub struct UIState {
     known_orphan_sockets: VecDeque<LocalSocket>,
     /// If set, only display processes whose name contains this string.
     pub process_filter: Option<String>,
+    /// Cached total bandwidth for filtered processes, updated on each `update()`.
+    pub filtered_total_bytes_uploaded: u128,
+    pub filtered_total_bytes_downloaded: u128,
 }
 
 impl UIState {
@@ -226,6 +229,28 @@ impl UIState {
         self.processes = sort_and_prune(&mut self.processes_map);
         self.remote_addresses = sort_and_prune(&mut self.remote_addresses_map);
         self.connections = sort_and_prune(&mut self.connections_map);
+        self.update_filtered_totals();
+    }
+
+    fn update_filtered_totals(&mut self) {
+        match self.process_filter.as_deref() {
+            Some(filter) => {
+                let mut up = 0u128;
+                let mut down = 0u128;
+                for (proc_info, data) in &self.processes {
+                    if process_matches_filter(&proc_info.name, Some(filter)) {
+                        up += data.total_bytes_uploaded;
+                        down += data.total_bytes_downloaded;
+                    }
+                }
+                self.filtered_total_bytes_uploaded = up;
+                self.filtered_total_bytes_downloaded = down;
+            }
+            None => {
+                self.filtered_total_bytes_uploaded = self.total_bytes_uploaded;
+                self.filtered_total_bytes_downloaded = self.total_bytes_downloaded;
+            }
+        }
     }
 }
 
