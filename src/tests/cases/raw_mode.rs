@@ -476,6 +476,43 @@ fn traffic_with_host_names() {
 }
 
 #[test]
+fn filter_process_raw_mode() {
+    let network_frames = vec![NetworkFrames::new(vec![
+        Some(build_tcp_packet(
+            "1.1.1.1",
+            "10.0.0.2",
+            12345,
+            443,
+            b"I have come from 1.1.1.1",
+        )),
+        Some(build_tcp_packet(
+            "3.3.3.3",
+            "10.0.0.2",
+            1337,
+            4435,
+            b"Greetings traveller, I'm from 3.3.3.3",
+        )),
+    ]) as Box<dyn DataLinkReceiver>];
+    let (_, _, backend) = test_backend_factory(190, 50);
+
+    let stdout = Arc::new(Mutex::new(Vec::new()));
+    let os_input = os_input_output_stdout(network_frames, 2, Some(stdout.clone()));
+    let opts = Opt {
+        interface: Some(String::from("interface_name")),
+        raw: true,
+        render_opts: crate::cli::RenderOpts {
+            filter_process: Some(String::from("1")),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    start(backend, os_input, opts);
+    let output = format_raw_stdout(&stdout);
+    assert!(output.contains("\"1\""));
+    assert!(!output.contains("\"5\""));
+}
+
+#[test]
 fn no_resolve_mode() {
     let network_frames = vec![NetworkFrames::new(vec![
         Some(build_tcp_packet(

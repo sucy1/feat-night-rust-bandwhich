@@ -7,7 +7,7 @@ use crate::{
     cli::{Opt, RenderOpts},
     display::{
         components::{HeaderDetails, HelpText, Layout, Table},
-        UIState,
+        process_matches_filter, UIState,
     },
     network::{display_connection_string, display_ip_or_host, LocalSocket, Utilization},
     os::ProcessInfo,
@@ -37,6 +37,7 @@ where
             state.unit_family = opts.render_opts.unit_family.into();
             state.cumulative_mode = opts.render_opts.total_utilization;
             state.show_dns = opts.show_dns;
+            state.process_filter = opts.render_opts.filter_process.clone();
             state
         };
         Ui {
@@ -53,9 +54,25 @@ where
         let timestamp = local_time.timestamp();
         let mut no_traffic = true;
 
+        let process_filter = state.process_filter.as_deref();
+        let filtered_remote_ips: Option<std::collections::HashSet<std::net::IpAddr>> =
+            process_filter.map(|filter| {
+                state
+                    .connections
+                    .iter()
+                    .filter(|(_, connection_data)| {
+                        process_matches_filter(&connection_data.process_name, Some(filter))
+                    })
+                    .map(|(connection, _)| connection.remote_socket.ip)
+                    .collect()
+            });
+
         let output_process_data = |write_to_stdout: &mut (dyn FnMut(&str) + Send),
                                    no_traffic: &mut bool| {
             for (proc_info, process_network_data) in &state.processes {
+                if !process_matches_filter(&proc_info.name, process_filter) {
+                    continue;
+                }
                 write_to_stdout(&format!(
                     "process: <{timestamp}> \"{}\" up/down Bps: {}/{} connections: {}",
                     proc_info.name,
@@ -70,6 +87,10 @@ where
         let output_connections_data =
             |write_to_stdout: &mut (dyn FnMut(&str) + Send), no_traffic: &mut bool| {
                 for (connection, connection_network_data) in &state.connections {
+                    if !process_matches_filter(&connection_network_data.process_name, process_filter)
+                    {
+                        continue;
+                    }
                     write_to_stdout(&format!(
                         "connection: <{timestamp}> {} up/down Bps: {}/{} process: \"{}\"",
                         display_connection_string(
@@ -88,6 +109,11 @@ where
         let output_adressess_data = |write_to_stdout: &mut (dyn FnMut(&str) + Send),
                                      no_traffic: &mut bool| {
             for (remote_address, remote_address_network_data) in &state.remote_addresses {
+                if let Some(ips) = &filtered_remote_ips {
+                    if !ips.contains(remote_address) {
+                        continue;
+                    }
+                }
                 write_to_stdout(&format!(
                     "remote_address: <{timestamp}> {} up/down Bps: {}/{} connections: {}",
                     display_ip_or_host(*remote_address, ip_to_host),

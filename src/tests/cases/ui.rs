@@ -787,6 +787,45 @@ fn traffic_with_winch_event() {
     assert_debug_snapshot!(terminal_events.lock().unwrap().as_slice());
 }
 
+#[test]
+fn filter_process_ui_mode() {
+    let network_frames = vec![NetworkFrames::new(vec![
+        Some(build_tcp_packet(
+            "1.1.1.1",
+            "10.0.0.2",
+            12345,
+            443,
+            b"I have come from 1.1.1.1",
+        )),
+        Some(build_tcp_packet(
+            "3.3.3.3",
+            "10.0.0.2",
+            1337,
+            4435,
+            b"Greetings traveller, I'm from 3.3.3.3",
+        )),
+    ]) as Box<dyn DataLinkReceiver>];
+
+    let (_, terminal_draw_events, backend) = test_backend_factory(190, 50);
+    let os_input = os_input_output(network_frames, 2);
+    let opts = Opt {
+        render_opts: RenderOpts {
+            filter_process: Some(String::from("1")),
+            ..Default::default()
+        },
+        ..opts_ui()
+    };
+    start(backend, os_input, opts);
+
+    let output = terminal_draw_events
+        .lock()
+        .unwrap()
+        .join(SNAPSHOT_SECTION_SEPARATOR);
+    assert!(output.contains("Utilization by process name"));
+    assert!(output.contains("1"));
+    assert!(!output.contains("5"));
+}
+
 #[rstest]
 #[case("full-width-under-30-height", 190, 29)]
 #[case("under-120-width-full-height", 119, 50)]

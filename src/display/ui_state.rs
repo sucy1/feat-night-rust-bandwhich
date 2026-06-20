@@ -96,6 +96,8 @@ pub struct UIState {
     pub connections_map: HashMap<Connection, ConnectionData>,
     /// Used for reducing logging noise.
     known_orphan_sockets: VecDeque<LocalSocket>,
+    /// If set, only display processes whose name contains this string.
+    pub process_filter: Option<String>,
 }
 
 impl UIState {
@@ -290,4 +292,55 @@ where
     }
 
     bandwidth_list
+}
+
+pub fn process_matches_filter(process_name: &str, filter: Option<&str>) -> bool {
+    match filter {
+        Some(filter) => process_name
+            .to_lowercase()
+            .contains(&filter.to_lowercase()),
+        None => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_matches_filter_no_filter_returns_true() {
+        assert!(process_matches_filter("chrome", None));
+        assert!(process_matches_filter("anything", None));
+    }
+
+    #[test]
+    fn process_matches_filter_exact_match() {
+        assert!(process_matches_filter("chrome", Some("chrome")));
+    }
+
+    #[test]
+    fn process_matches_filter_case_insensitive() {
+        assert!(process_matches_filter("Chrome", Some("chrome")));
+        assert!(process_matches_filter("CHROME", Some("chrome")));
+        assert!(process_matches_filter("chrome", Some("Chrome")));
+    }
+
+    #[test]
+    fn process_matches_filter_substring_match() {
+        assert!(process_matches_filter("google-chrome", Some("chrome")));
+        assert!(process_matches_filter("chrome_helper", Some("chrome")));
+        assert!(process_matches_filter("GoogleChrome", Some("chrome")));
+    }
+
+    #[test]
+    fn process_matches_filter_no_match() {
+        assert!(!process_matches_filter("firefox", Some("chrome")));
+        assert!(!process_matches_filter("safari", Some("chrome")));
+    }
+
+    #[test]
+    fn process_matches_filter_empty_filter_matches_nothing() {
+        // Empty string filter matches everything since "".contains("") == true
+        assert!(process_matches_filter("anything", Some("")));
+    }
 }

@@ -39,7 +39,7 @@ pub struct Opt {
     pub render_opts: RenderOpts,
 }
 
-#[derive(Copy, Clone, Debug, Default, Args)]
+#[derive(Clone, Debug, Default, Args)]
 pub struct RenderOpts {
     #[arg(short, long)]
     /// Show processes table only
@@ -60,6 +60,10 @@ pub struct RenderOpts {
     #[arg(short, long)]
     /// Show total (cumulative) usages
     pub total_utilization: bool,
+
+    #[arg(long)]
+    /// Only show processes whose name contains this string
+    pub filter_process: Option<String>,
 }
 
 // IMPRV: it would be nice if we can `#[cfg_attr(not(build), derive(strum::EnumIter))]` this

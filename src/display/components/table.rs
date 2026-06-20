@@ -11,7 +11,7 @@ use ratatui::{
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
-    display::{Bandwidth, BandwidthUnitFamily, DisplayBandwidth, UIState},
+    display::{process_matches_filter, Bandwidth, BandwidthUnitFamily, DisplayBandwidth, UIState},
     network::{display_connection_string, display_ip_or_host},
 };
 
@@ -224,6 +224,7 @@ impl Table {
         let rows = state
             .connections
             .iter()
+            .filter(|(_, connection_data)| process_matches_filter(&connection_data.process_name, state.process_filter.as_deref()))
             .map(|(connection, connection_data)| {
                 [
                     display_connection_string(
@@ -282,6 +283,7 @@ impl Table {
         let rows = state
             .processes
             .iter()
+            .filter(|(proc_info, _)| process_matches_filter(&proc_info.name, state.process_filter.as_deref()))
             .map(|(proc_info, data_for_process)| {
                 [
                     proc_info.name.to_string(),
@@ -336,9 +338,24 @@ impl Table {
                 "Rate (Up / Down)"
             },
         ];
+        let filtered_remote_ips: Option<std::collections::HashSet<IpAddr>> =
+            state.process_filter.as_deref().map(|filter| {
+                state
+                    .connections
+                    .iter()
+                    .filter(|(_, connection_data)| {
+                        process_matches_filter(&connection_data.process_name, Some(filter))
+                    })
+                    .map(|(connection, _)| connection.remote_socket.ip)
+                    .collect()
+            });
         let rows = state
             .remote_addresses
             .iter()
+            .filter(|(remote_address, _)| match &filtered_remote_ips {
+                Some(ips) => ips.contains(remote_address),
+                None => true,
+            })
             .map(|(remote_address, data_for_remote_address)| {
                 let remote_address = display_ip_or_host(*remote_address, ip_to_host);
                 [
@@ -468,3 +485,5 @@ fn truncate_middle(row: &str, max_len: u16) -> String {
         row.to_string()
     }
 }
+
+
